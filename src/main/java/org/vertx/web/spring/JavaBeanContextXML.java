@@ -2,9 +2,7 @@ package org.vertx.web.spring;
 
 import org.springframework.context.support.ClassPathXmlApplicationContext;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,9 +10,9 @@ import java.util.Map;
  *
  * 加载bean容器
  */
-public class JavaBeanContext extends ClassPathXmlApplicationContext {
+public class JavaBeanContextXML extends ClassPathXmlApplicationContext {
 
-    public JavaBeanContext(String ... configLocations){
+    public JavaBeanContextXML(String ... configLocations){
         super(configLocations);
         super.start();
     }

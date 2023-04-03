@@ -2,13 +2,14 @@ package org.vertx.web.core.router.config;
 
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.Router;
+import org.springframework.context.support.AbstractApplicationContext;
+import org.springframework.context.support.AbstractRefreshableConfigApplicationContext;
 import org.vertx.web.core.annotation.Blocking;
 import org.vertx.web.core.annotation.GetMapping;
 import org.vertx.web.core.annotation.PostMapping;
 import org.vertx.web.core.annotation.RestController;
 import org.vertx.web.core.handler.RouterHandler;
 import org.vertx.web.core.router.RouterCreate;
-import org.vertx.web.spring.JavaBeanContext;
 
 import java.lang.reflect.Method;
 import java.util.Collection;
@@ -21,7 +22,7 @@ import java.util.Map;
  */
 public class RouterInit {
 
-    private JavaBeanContext javaBeanContext;
+    private AbstractApplicationContext abstractApplicationContext;
 
     private Map<String, Object> beans;
 
@@ -29,9 +30,10 @@ public class RouterInit {
 
     private RouterCreate routerCreate;
 
-    public RouterInit(JavaBeanContext javaBeanContext, Vertx vertx){
-        this.javaBeanContext = javaBeanContext;
-        this.beans = this.javaBeanContext.getBeansWithAnnotation(RestController.class);
+    public RouterInit(AbstractApplicationContext abstractApplicationContext, Vertx vertx){
+        this.abstractApplicationContext = abstractApplicationContext;
+        this.abstractApplicationContext.start();//启动自动装配
+        this.beans = this.abstractApplicationContext.getBeansWithAnnotation(RestController.class);
         this.vertx = vertx;
         this.routerCreate = new RouterCreate(vertx);
         this.init();
