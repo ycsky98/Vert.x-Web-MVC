@@ -1,8 +1,11 @@
 package org.vertx.web.core.handler;
 
 import io.vertx.core.Handler;
+import io.vertx.core.MultiMap;
+import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
+import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
 import org.vertx.web.core.annotation.GetMapping;
 import org.vertx.web.core.annotation.Param;
@@ -15,6 +18,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * @author yangcong
@@ -33,9 +37,15 @@ public class RouterHandler implements Handler<RoutingContext> {
      */
     private Method method;
 
-    public RouterHandler(Object targ, Method method){
+    /**
+     * Vertx
+     */
+    private Vertx vertx;
+
+    public RouterHandler(Object targ, Method method, Vertx vertx){
         this.targ = targ;
         this.method = method;
+        this.vertx = vertx;
     }
 
     /**
@@ -57,6 +67,26 @@ public class RouterHandler implements Handler<RoutingContext> {
             return;
         }
 
+        String contentType = httpServerRequest.getHeader("Content-Type");
+        if (contentType != null && contentType.contains("multipart/form-data")) {
+            // 这是一个文件上传的HTTP请求
+            this.isFromRequest(event, httpServerRequest, httpServerResponse);
+        } else if (contentType != null && contentType.contains("application/json")){
+            // 这是一个json请求
+            this.isJsonRequest(event, httpServerRequest, httpServerResponse);
+        } else {
+            httpServerResponse.end("暂无该请求类型");
+        }
+    }
+
+    /**
+     * 处理请求头为application/json
+     * @param event
+     * @param httpServerRequest
+     * @param httpServerResponse
+     */
+    private void isJsonRequest(RoutingContext event, HttpServerRequest httpServerRequest,
+                               HttpServerResponse httpServerResponse){
         // 拿到json数据
         String requestData = event.getBodyAsString("UTF-8");
         if (Objects.isNull(requestData) || "".equals(requestData)){
@@ -75,7 +105,9 @@ public class RouterHandler implements Handler<RoutingContext> {
                     objects[count] = httpServerRequest;
                 } else if (parameter.getType().equals(httpServerResponse.getClass())) {
                     objects[count] = httpServerResponse;
-                }else if (parameter.isAnnotationPresent(RequestBody.class)){//RequestBody 获取请求体,并转换
+                }else if (parameter.getType().equals(this.vertx.getClass())) {
+                    objects[count] = this.vertx;
+                } else if (parameter.isAnnotationPresent(RequestBody.class)){//RequestBody 获取请求体,并转换
                     objects[count] = JSONPrint.parseJSON(requestData, parameter.getType());
                 } else if (parameter.isAnnotationPresent(Param.class)) {//取出里面的某一项
                     objects[count] = JSONPrint.parseJSON(
@@ -96,6 +128,17 @@ public class RouterHandler implements Handler<RoutingContext> {
         } catch (Exception e){
             event.end(e.getMessage());
         }
+    }
+
+    /**
+     * 处理from表单请求
+     * @param event
+     * @param httpServerRequest
+     * @param httpServerResponse
+     */
+    private void isFromRequest(RoutingContext event, HttpServerRequest httpServerRequest,
+                               HttpServerResponse httpServerResponse){
+        MultiMap map = httpServerRequest.formAttributes();
     }
 
     /**

@@ -58,9 +58,9 @@ public class RouterInit {
                 }
                 //需要去判定方法是否式耗时方法(由注解告诉框架)选择的路由是耗时路由还是异步路由
                 if (methods[i].isAnnotationPresent(Blocking.class)){
-                    this.routerCreate.urlBlocking(prefix, new RouterHandler(obj, methods[i]));
+                    this.routerCreate.urlBlocking(prefix, new RouterHandler(obj, methods[i], this.vertx));
                 }else {
-                    this.routerCreate.url(prefix, new RouterHandler(obj, methods[i]));
+                    this.routerCreate.url(prefix, new RouterHandler(obj, methods[i], this.vertx));
                 }
                 prefix = this.prefixUrl(obj);
             }

@@ -5,7 +5,6 @@ import io.vertx.core.http.HttpServer;
 import org.springframework.context.annotation.ComponentScan;
 import org.vertx.web.core.router.config.RouterInit;
 import org.vertx.web.spring.JavaBeanContextAnnotation;
-import org.vertx.web.spring.JavaBeanContextXML;
 
 @ComponentScan("demo.test.**")
 public class Test {
