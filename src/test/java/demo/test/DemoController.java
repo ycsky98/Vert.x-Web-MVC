@@ -2,6 +2,7 @@ package demo.test;
 
 import org.vertx.web.core.annotation.Blocking;
 import org.vertx.web.core.annotation.GetMapping;
+import org.vertx.web.core.annotation.PostMapping;
 import org.vertx.web.core.annotation.RestController;
 
 @RestController(url = "/demo")
@@ -17,8 +18,8 @@ public class DemoController {
         return Thread.currentThread().getName();
     }
 
-    @GetMapping("/2")
-    public Object test2(){
-        return Thread.currentThread().getName();
+    @PostMapping("/2")
+    public Object test2(String key){
+        return key;
     }
 }

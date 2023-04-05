@@ -1,5 +1,6 @@
 package org.vertx.web.core.handler;
 
+import com.google.gson.JsonObject;
 import io.vertx.core.Handler;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Vertx;
@@ -7,18 +8,16 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.ext.web.RoutingContext;
-import org.vertx.web.core.annotation.GetMapping;
-import org.vertx.web.core.annotation.Param;
-import org.vertx.web.core.annotation.PostMapping;
-import org.vertx.web.core.annotation.RequestBody;
+import org.vertx.web.core.annotation.*;
+import org.vertx.web.core.file.FileUploadDetails;
 import org.vertx.web.json.JSONPrint;
 
-import java.lang.reflect.InvocationTargetException;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.*;
 
 /**
  * @author yangcong
@@ -108,16 +107,32 @@ public class RouterHandler implements Handler<RoutingContext> {
                 }else if (parameter.getType().equals(this.vertx.getClass())) {
                     objects[count] = this.vertx;
                 } else if (parameter.isAnnotationPresent(RequestBody.class)){//RequestBody 获取请求体,并转换
-                    objects[count] = JSONPrint.parseJSON(requestData, parameter.getType());
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = JSONPrint.parseJSON(requestData, JsonObject.class).toString();
+                    }else {
+                        objects[count] = JSONPrint.parseJSON(requestData, parameter.getType());
+                    }
                 } else if (parameter.isAnnotationPresent(Param.class)) {//取出里面的某一项
-                    objects[count] = JSONPrint.parseJSON(
-                            JSONPrint.toJSON(
-                                    JSONPrint.parseJSON(requestData, Map.class).get(parameter.getName())
-                            ),
-                            parameter.getType()
-                    );
+                    String key = parameter.getAnnotation(Param.class).value();
+
+                    Map<String, Object> map = JSONPrint.parseJSON(requestData, Map.class);
+                    String v = JSONPrint.toJSON(map.get(key));//拿到对应的value,转成json
+                    //如果是字符串,直接赋予
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = v;
+                    }else {//如果不是字符串,进行转换
+                        objects[count] = JSONPrint.parseJSON(v, parameter.getType());
+                    }
                 } else {
-                    objects[count] = JSONPrint.parseJSON(requestData, parameter.getType());
+                    String key = parameter.getName();
+                    Map<String, Object> map = JSONPrint.parseJSON(requestData, Map.class);
+                    String v = JSONPrint.toJSON(map.get(key));//拿到对应的value,转成json
+                    //如果是字符串,直接赋予
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = v;
+                    }else {//如果不是字符串,进行转换
+                        objects[count] = JSONPrint.parseJSON(v, parameter.getType());
+                    }
                 }
                 count++;
             }
@@ -137,8 +152,103 @@ public class RouterHandler implements Handler<RoutingContext> {
      * @param httpServerResponse
      */
     private void isFromRequest(RoutingContext event, HttpServerRequest httpServerRequest,
-                               HttpServerResponse httpServerResponse){
-        MultiMap map = httpServerRequest.formAttributes();
+                               HttpServerResponse httpServerResponse) {
+        MultiMap requestKey = httpServerRequest.formAttributes();
+        Set<String> names = requestKey.names();
+
+        Map<String, Object> data = new HashMap<>();
+
+        for (String name:names) {
+            data.put(name, httpServerRequest.getParam(name));
+        }
+
+        String requestData = "{}";
+        try {
+            requestData = JSONPrint.toJSON(data);
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+
+        //获取文件
+        List<FileUpload> fileUploads = event.fileUploads();
+        Map<String, FileUploadDetails> fileUploadDetailsMap = new HashMap<>();
+        FileUpload fileUpload = null;
+        try {
+            for (int i = 0; i < fileUploads.size(); i++) {
+                fileUpload = fileUploads.get(i);
+                fileUploadDetailsMap.put(fileUpload.name(),
+                        new FileUploadDetails()
+                                .setFilename(fileUpload.fileName().substring(0, fileUpload.fileName().lastIndexOf(".")))
+                                .setSuffix(fileUpload.fileName().substring(fileUpload.fileName().lastIndexOf("."), fileUpload.fileName().length()))
+                                .setBytes(Files.readAllBytes(Path.of(fileUpload.uploadedFileName())))
+                );
+                //传完后删除
+                Files.delete(Path.of(fileUpload.uploadedFileName()));
+            }
+        } catch (IOException e){
+            e.printStackTrace();
+        }
+
+        Parameter[] parameters = this.findParameter();
+
+        Object[] objects = new Object[parameters.length];
+
+        Object result = null;
+        try {
+            int count = 0;
+            for (Parameter parameter : parameters) {
+                if (parameter.getType().equals(httpServerRequest.getClass())){//内置组件request
+                    objects[count] = httpServerRequest;
+                } else if (parameter.getType().equals(httpServerResponse.getClass())) {//内置组件response
+                    objects[count] = httpServerResponse;
+                }else if (parameter.getType().equals(this.vertx.getClass())) {//内置组件vertx
+                    objects[count] = this.vertx;
+                } else if (parameter.isAnnotationPresent(RequestBody.class)){//RequestBody 获取请求体,并转换
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = JSONPrint.parseJSON(requestData, JsonObject.class).toString();
+                    }else {
+                        objects[count] = JSONPrint.parseJSON(requestData, parameter.getType());
+                    }
+                } else if (parameter.isAnnotationPresent(Param.class)) {//取出里面的某一项
+                    String key = parameter.getAnnotation(Param.class).value();
+
+                    Map<String, Object> map = JSONPrint.parseJSON(requestData, Map.class);
+                    String v = JSONPrint.toJSON(map.get(key));//拿到对应的value,转成json
+                    //如果是字符串,直接赋予
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = v;
+                    }else {//如果不是字符串,进行转换
+                        objects[count] = JSONPrint.parseJSON(v, parameter.getType());
+                    }
+                } else if (parameter.isAnnotationPresent(File.class) && parameter.getType().equals(FileUploadDetails.class)) {
+                    objects[count] = fileUploadDetailsMap.get(parameter.getAnnotation(File.class).name());
+                } else if (parameter.getType().equals(FileUploadDetails[].class)) {//如果上传的是一组文件
+                    if (fileUploadDetailsMap.isEmpty()){
+                        objects[count] = new FileUploadDetails[0];
+                    }else {
+                        objects[count] = fileUploadDetailsMap.values().stream().toArray();
+                    }
+                } else {
+                    //以参数key作为标准
+                    String key = parameter.getName();
+                    Map<String, Object> map = JSONPrint.parseJSON(requestData, Map.class);
+                    String v = JSONPrint.toJSON(map.get(key));//拿到对应的value,转成json
+                    //如果是字符串,直接赋予
+                    if (parameter.getType().equals(String.class)){
+                        objects[count] = v;
+                    }else {//如果不是字符串,进行转换
+                        objects[count] = JSONPrint.parseJSON(v, parameter.getType());
+                    }
+                }
+                count++;
+            }
+
+            result = this.method.invoke(this.targ, objects);
+            //没错误的话直接输出结果集
+            event.end(JSONPrint.toJSON(result));
+        } catch (Exception e){
+            event.end(e.getMessage());
+        }
     }
 
     /**
